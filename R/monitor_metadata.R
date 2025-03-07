@@ -4,7 +4,7 @@
         url = "https://aqs.epa.gov/aqsweb/airdata/aqs_monitors.zip",
         destfile = zip_file_path
     )
-    unzip(zip_file_path, exdir = temp_directory)
+    utils::unzip(zip_file_path, exdir = temp_directory)
 }
 
 .import_monitor_metadata <- function(temp_directory) {

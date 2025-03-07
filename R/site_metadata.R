@@ -4,7 +4,7 @@
         url = "https://aqs.epa.gov/aqsweb/airdata/aqs_sites.zip",
         destfile = zip_file_path
     )
-    unzip(zip_file_path, exdir = temp_directory)
+    utils::unzip(zip_file_path, exdir = temp_directory)
 }
 
 .import_sites_metadata <- function(temp_directory) {

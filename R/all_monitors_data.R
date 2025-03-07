@@ -10,7 +10,7 @@
     url <- .define_all_monitors_url(year = year)
     zip_file_path <- tempfile(tmpdir = temp_directory, fileext = ".zip")
     utils::download.file(url = url, destfile = zip_file_path)
-    unzip(zip_file_path, exdir = temp_directory)
+    utils::unzip(zip_file_path, exdir = temp_directory)
     zip_file_path
 }
 
