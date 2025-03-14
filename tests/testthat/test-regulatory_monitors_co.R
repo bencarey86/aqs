@@ -1,9 +1,11 @@
 # Set up -----------------------------------------------------------------------
 test_that("CO URL is defined correctly and has active link", {
-  year <- sample(2005:2023, 1)
-  url <- .define_co_url(year)
-  expect_true(is.character(url))
-  expect_true(httr::HEAD(url)$status == 200)
+  years <- 2012:2023
+  purrr::map(years, function(year) {
+    url <- .define_co_url(year)
+    expect_true(is.character(url))
+    expect_true(httr::HEAD(url)$status == 200)
+  })
 })
 
 test_that("C0 8hr monitor sheet is correctly defined", {
@@ -277,10 +279,24 @@ test_that("Final combined DF has correct number of unique monitors", {
   purrr::map(years, function(year) {
     co_initial_data <- get(stringr::str_c("co_initial_data_", year))
     co_valid_data <- get(stringr::str_c("co_valid_data_", year))
+    shared_monitors <- dplyr::inner_join(
+      co_valid_data$co_8h,
+      co_valid_data$co_1h,
+      by = c("aqs_site_id", "poc")
+    ) |>
+      nrow()
+    unique_monitors_8h <- dplyr::anti_join(
+      co_valid_data$co_8h,
+      co_valid_data$co_1h,
+      by = c("aqs_site_id", "poc")
+    ) |> nrow()
+    unique_monitors_1h <- dplyr::anti_join(
+      co_valid_data$co_1h, co_valid_data$co_8h,
+      by = c("aqs_site_id", "poc")
+    ) |> nrow()
     expect_equal(
-      (nrow(dplyr::inner_join(co_valid_data$co_8h, co_valid_data$co_1h, by = c("aqs_site_id", "poc"))) +
-        nrow(dplyr::anti_join(co_valid_data$co_8h, co_valid_data$co_1h, by = c("aqs_site_id", "poc")))),
-      nrow(.combine_co_data(year, co_initial_data, co_valid_data))
+      nrow(.combine_co_data(year, co_initial_data, co_valid_data)),
+      (shared_monitors + unique_monitors_8h + unique_monitors_1h)
     )
   })
   # 2012-2013
@@ -289,10 +305,24 @@ test_that("Final combined DF has correct number of unique monitors", {
     co_initial_data <- get(stringr::str_c("co_initial_data_", year))
     co_valid_data <- get(stringr::str_c("co_valid_data_", year))
     joined_data <- .join_co_sites_and_monitors(co_valid_data, co_initial_data)
+    shared_monitors <- dplyr::inner_join(
+      joined_data$co_8h,
+      joined_data$co_1h,
+      by = c("aqs_site_id", "poc")
+    ) |> nrow()
+    unique_monitors_8h <- dplyr::anti_join(
+      joined_data$co_8h,
+      joined_data$co_1h,
+      by = c("aqs_site_id", "poc")
+    ) |> nrow()
+    unique_monitors_1h <- dplyr::anti_join(
+      joined_data$co_1h,
+      joined_data$co_8h,
+      by = c("aqs_site_id", "poc")
+    ) |> nrow()
     expect_equal(
-      (nrow(dplyr::inner_join(joined_data$co_8h, joined_data$co_1h, by = c("aqs_site_id", "poc"))) +
-        nrow(dplyr::anti_join(joined_data$co_8h, joined_data$co_1h, by = c("aqs_site_id", "poc")))),
-      nrow(.combine_co_data(year, co_initial_data, co_valid_data))
+      nrow(.combine_co_data(year, co_initial_data, co_valid_data)),
+      (shared_monitors + unique_monitors_8h + unique_monitors_1h)
     )
   })
 })
