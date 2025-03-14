@@ -131,12 +131,16 @@ test_that("Initial site DF has correct columns", {
   })
 })
 
-years <- 2012:2023
-purrr::map(years, function(year) {
-  lead_initial_data <- get(stringr::str_c("lead_initial_data_", year))
-  colnames(lead_initial_data$sites)
+test_that("Initial data does not contain duplicate observations", {
+  years <- 2012:2023
+  purrr::map(years, function(year) {
+    lead_initial_data <- get(stringr::str_c("lead_initial_data_", year))
+    expect_true(!anyDuplicated(lead_initial_data$sites))
+    expect_true(!anyDuplicated(lead_initial_data$monitors))
+  })
 })
 
+# Validity determination -------------------------------------------------------
 test_that("Lead data is filtered to valid DVs correctly", {
   df_2012 <- data.frame(
     valid_dv = c(1, 2, 3, NA),
@@ -162,122 +166,103 @@ test_that("Lead data is filtered to valid DVs correctly", {
   )
 })
 
-test_that("Intermediate DF has appropriate columns", {
-  # 2019-2023
-  expect_true(
-    all(colnames(lead_intermediate_2019_2023$lead_sites) %in% c("state", "aqs_site_id", "valid_dv", "invalid_dv"))
+test_that("Lead validity is determined correctly based on actual row numbers", {
+  # 2019-2023 (valid_dv only)
+  years <- 2019:2023
+  purrr::map(years, function(year) {
+    lead_initial_data <- get(stringr::str_c("lead_initial_data_", year))
+    lead_valid_data <- get(stringr::str_c("lead_valid_sites_", year))
+    expect_equal(
+      nrow(lead_valid_data),
+      nrow(lead_initial_data$sites |> dplyr::filter(!is.na(valid_dv)))
+    )
+  })
+  # 2012-2018 (valid_dv and validity)
+  years <- 2012:2018
+  purrr::map(years, function(year) {
+    lead_initial_data <- get(stringr::str_c("lead_initial_data_", year))
+    lead_valid_data <- get(stringr::str_c("lead_valid_sites_", year))
+    expect_equal(
+      nrow(lead_valid_data),
+      nrow(
+        lead_initial_data$sites |>
+          dplyr::filter(!is.na(valid_dv) & stringr::str_detect(validity, "^Y|yes"))
+      )
+    )
+  })
+})
+
+test_that("Validity responses adhere to expected pattern for 2012-2018", {
+  years <- 2012:2018
+  validity_responses <- purrr::map(years, function(year) {
+    lead_initial_data <- get(stringr::str_c("lead_initial_data_", year))
+    unique(lead_initial_data$sites$validity)
+  }) |>
+    unlist() |>
+    unique()
+  expect_true(all(validity_responses %in% c("Y", "yes", "N", "no")))
+})
+
+# DF combination ----------------------------------------------------------------
+test_that("DFs have expected columns prior to join", {
+  years <- 2012:2023
+  purrr::map(years, function(year) {
+    lead_initial_data <- get(stringr::str_c("lead_initial_data_", year))
+    lead_valid_sites <- get(stringr::str_c("lead_valid_sites_", year))
+    expect_equal(
+      colnames(lead_valid_sites),
+      "aqs_site_id"
+    )
+    expect_equal(
+      colnames(lead_initial_data$monitors),
+      c("aqs_site_id", "poc")
+    )
+  })
+})
+
+test_that("No duplicates exist in joining fields", {
+  years <- 2012:2023
+  purrr::map(years, function(year) {
+    lead_initial_data <- get(stringr::str_c("lead_initial_data_", year))
+    lead_valid_sites <- get(stringr::str_c("lead_valid_sites_", year))
+    expect_true(!anyDuplicated(lead_valid_sites))
+    expect_true(!anyDuplicated(lead_initial_data$monitors))
+  })
+})
+
+test_that("Joined DFs have expected number of rows", {
+  years <- 2012:2023
+  purrr::map(years, function(year) {
+    lead_initial_data <- get(stringr::str_c("lead_initial_data_", year))
+    lead_valid_sites <- get(stringr::str_c("lead_valid_sites_", year))
+    sites_unmatched <- sum(!lead_valid_sites$aqs_site_id %in% lead_initial_data$monitors$aqs_site_id)
+    matched <- sum(lead_initial_data$monitors$aqs_site_id %in% lead_valid_sites$aqs_site_id)
+    expect_equal(
+      nrow(.join_lead_sites_and_monitors(lead_valid_sites, lead_initial_data$monitors)),
+      (sites_unmatched + matched)
+    )
+  })
+})
+
+test_that("Join preserves unmatched sites and adds expected number of monitors", {
+  sites <- data.frame(
+    aqs_site_id = c("01", "02", "03", "04", "05")
   )
-  expect_true(
-    all(colnames(lead_intermediate_2019_2023$lead_monitors) %in% c("aqs_site_id", "poc"))
+  monitors <- data.frame(
+    aqs_site_id = c("01", "02", "03", "03", "04", "04", "04"),
+    poc = c(1, 2, 3, 5, 1, 2, 3)
   )
-  # 2018
-  expect_true(
-    all(colnames(lead_intermediate_2018$lead_sites) %in% c("state", "aqs_site_id", "valid_dv", "invalid_dv", "validity"))
+  expected_df <- data.frame(
+    aqs_site_id = c("01", "02", "03", "03", "04", "04", "04", "05"),
+    poc = c(1, 2, 3, 5, 1, 2, 3, NA)
   )
-  expect_true(
-    all(colnames(lead_intermediate_2018$lead_monitors) %in% c("aqs_site_id", "poc"))
-  )
-  # 2016-2017
-  expect_true(
-    all(colnames(lead_intermediate_2016_2017$lead_sites) %in% c("state", "aqs_site_id", "valid_dv", "invalid_dv", "validity"))
-  )
-  expect_true(
-    all(colnames(lead_intermediate_2016_2017$lead_monitors) %in% c("aqs_site_id", "poc"))
-  )
-  # 2012-2015
-  expect_true(
-    all(colnames(lead_intermediate_2012_2015$lead_sites) %in% c("state", "aqs_site_id", "valid_dv", "invalid_dv", "validity"))
-  )
-  expect_true(
-    all(colnames(lead_intermediate_2012_2015$lead_monitors) %in% c("aqs_site_id", "poc"))
+  expect_equal(
+    .join_lead_sites_and_monitors(sites, monitors),
+    expected_df
   )
 })
 
-test_that("Valid sites are determined correctly", {
-  # 2019-2023
-  expect_equal(
-    nrow(lead_final_2019_2023$lead_valid_sites),
-    nrow(.filter_lead_valid_dv(lead_intermediate_2019_2023$lead_sites, lead_intermediate_2019_2023$year))
-  )
-  # 2018
-  expect_equal(
-    nrow(lead_final_2018$lead_valid_sites),
-    nrow(.filter_lead_valid_dv(lead_intermediate_2018$lead_sites, lead_intermediate_2018$year))
-  )
-  # 2016-2017
-  expect_equal(
-    nrow(lead_final_2016_2017$lead_valid_sites),
-    nrow(.filter_lead_valid_dv(lead_intermediate_2016_2017$lead_sites, lead_intermediate_2016_2017$year))
-  )
-  # 2012-2015
-  expect_equal(
-    nrow(lead_final_2012_2015$lead_valid_sites),
-    nrow(.filter_lead_valid_dv(lead_intermediate_2012_2015$lead_sites, lead_intermediate_2012_2015$year))
-  )
-})
-
-test_that("Sites DF contains only unique observations", {
-  expect_true(!anyDuplicated(lead_final_2019_2023$lead_valid_sites))
-  expect_true(!anyDuplicated(lead_final_2018$lead_valid_sites))
-  expect_true(!anyDuplicated(lead_final_2016_2017$lead_valid_sites))
-  expect_true(!anyDuplicated(lead_final_2012_2015$lead_valid_sites))
-})
-
-test_that("Joins yield correct number of observations", {
-  # 2019-2023
-  site_unmatched_2019_2023 <- sum(!lead_final_2019_2023$lead_valid_sites$aqs_site_id %in% lead_intermediate_2019_2023$lead_sites$aqs_site_id)
-  matched_2019_2023 <- sum(lead_intermediate_2019_2023$lead_monitors$aqs_site_id %in% lead_final_2019_2023$lead_valid_sites$aqs_site_id)
-  expect_equal(
-    nrow(lead_final_2019_2023$lead),
-    (site_unmatched_2019_2023 + matched_2019_2023)
-  )
-  # 2018
-  site_unmatched_2018 <- sum(!lead_final_2018$lead_valid_sites$aqs_site_id %in% lead_intermediate_2018$lead_sites$aqs_site_id)
-  matched_2018 <- sum(lead_intermediate_2018$lead_monitors$aqs_site_id %in% lead_final_2018$lead_valid_sites$aqs_site_id)
-  expect_equal(
-    nrow(lead_final_2018$lead),
-    (site_unmatched_2018 + matched_2018)
-  )
-  # 2016-2017
-  site_unmatched_2016_2017 <- sum(!lead_final_2016_2017$lead_valid_sites$aqs_site_id %in% lead_intermediate_2016_2017$lead_sites$aqs_site_id)
-  matched_2016_2017 <- sum(lead_intermediate_2016_2017$lead_monitors$aqs_site_id %in% lead_final_2016_2017$lead_valid_sites$aqs_site_id)
-  expect_equal(
-    nrow(lead_final_2016_2017$lead),
-    (site_unmatched_2016_2017 + matched_2016_2017)
-  )
-  # 2012-2015
-  site_unmatched_2012_2015 <- sum(!lead_final_2012_2015$lead_valid_sites$aqs_site_id %in% lead_intermediate_2012_2015$lead_sites$aqs_site_id)
-  matched_2012_2015 <- sum(lead_intermediate_2012_2015$lead_monitors$aqs_site_id %in% lead_final_2012_2015$lead_valid_sites$aqs_site_id)
-  expect_equal(
-    nrow(lead_final_2012_2015$lead),
-    (site_unmatched_2012_2015 + matched_2012_2015)
-  )
-})
-
-test_that("Final DF has correct number of unique monitors", {
-  # 2019-2023
-  expect_equal(
-    nrow(lead_final_2019_2023$lead),
-    nrow(suppressWarnings(.get_lead_monitors(lead_final_2019_2023$year)))
-  )
-  # 2018
-  expect_equal(
-    nrow(lead_final_2018$lead),
-    nrow(suppressWarnings(.get_lead_monitors(lead_final_2018$year)))
-  )
-  # 2016-2017
-  expect_equal(
-    nrow(lead_final_2016_2017$lead),
-    nrow(suppressWarnings(.get_lead_monitors(lead_final_2016_2017$year)))
-  )
-  # 2012-2015
-  expect_equal(
-    nrow(lead_final_2012_2015$lead),
-    nrow(suppressWarnings(.get_lead_monitors(lead_final_2012_2015$year)))
-  )
-})
-
-
+# Master function --------------------------------------------------------------
 test_that("Lead master function returns expected data", {
   years <- 2012:2023
   purrr::map(years, function(year) {
@@ -285,11 +270,9 @@ test_that("Lead master function returns expected data", {
     expect_true(
       all(c("aqs_site_id", "poc", "year", "parameter_name") %in% colnames(df))
     )
-    expect_true(
-      unique(df$year) == year
-    )
-    expect_true(
-      unique(df$parameter_name) == "Lead"
+    expect_equal(
+      df,
+      get(stringr::str_c("lead_", year))
     )
   })
 })

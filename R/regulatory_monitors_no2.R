@@ -20,6 +20,21 @@
     )
 }
 
+.define_no2_file_setup <- function(year, directory_name) {
+    temp_directory <- .create_temp_subdirectory(directory_name)
+    url <- .define_no2_url(year)
+    excel_file_path <- .download_regulatory_monitor_data(
+        year = year,
+        url = url,
+        temp_directory = temp_directory
+    )
+    list(
+        temp_directory = temp_directory,
+        url = url,
+        excel_file_path = excel_file_path
+    )
+}
+
 .define_no2_annual_sites_sheet <- function(year) {
     sheet <- dplyr::case_when(
         year %in% 2014:2023 ~ "Table5a. Site Status Annual",
@@ -46,25 +61,43 @@
     )
 }
 
-.define_no2_skip <- function(level = c("site", "monitor")) {
-    if (level == "site") {
-        skip <- 3
-    } else if (level == "monitor") {
-        skip <- 1
-    }
-    skip
+.define_no2_excel_sheets <- function(year) {
+    list(
+        sites_annual = .define_no2_annual_sites_sheet(year = year),
+        sites_1h = .define_no2_1h_sites_sheet(year = year),
+        monitors = .define_no2_monitors_sheet(year = year)
+    )
 }
 
-.define_no2_column_patterns <- function(level = c("site", "monitor")) {
-    if (level == "site") {
-        col_patterns <- "^state$|state_name|^site$|aqs_site_id|design_value|valid|^completeness"
-    } else if (level == "monitor") {
-        col_patterns <- "^aqs_site_id$|^poc$"
-    }
+.define_no2_excel_rows_to_skip <- function() {
+    list(
+        sites = 3,
+        monitors = 1
+    )
 }
 
+.define_no2_column_patterns <- function() {
+    list(
+        sites = "^site$|aqs_site_id|^valid$|^completeness|^x2010_2012_1_hr_design_value|x2012_annual_design_value|^valid_[0-9{4}_[0-9]{4}|^valid_20[1-9]{2}_annual_design_value",
+        monitors = "^aqs_site_id$|^poc$"
+    )
+}
+
+.set_up_no2_processing <- function(year) {
+    file_definitions <- .define_no2_file_setup(year = year, directory_name = "no2_design_values")
+    sheets <- .define_no2_excel_sheets(year = year)
+    skips <- .define_no2_excel_rows_to_skip()
+    column_patterns <- .define_no2_column_patterns()
+    list(
+        file_definitions = file_definitions,
+        sheets = sheets,
+        skips = skips,
+        column_patterns = column_patterns
+    )
+}
+
+# Preliminary data processing --------------------------------------------------
 .rename_no2_site_columns <- function(df) {
-    colnames(df)[grep("state", colnames(df))] <- "state"
     colnames(df)[grep("site", colnames(df))] <- "aqs_site_id"
     colnames(df)[grep("invalid", colnames(df))] <- "invalid_dv"
     colnames(df)[grep("_valid|^valid|design", colnames(df))] <- "valid_dv"
@@ -72,6 +105,74 @@
     df
 }
 
+.process_initial_no2_sites <- function(excel_file_path, sheet, skip, column_patterns) {
+    .import_regulatory_monitor_data(
+        excel_file_path = excel_file_path,
+        sheet = sheet,
+        skip = skip
+    ) |>
+        .select_cols(column_patterns) |>
+        .rename_no2_site_columns() |>
+        .make_aqs_site_id_char() |>
+        .drop_rows_all_na() |>
+        dplyr::distinct()
+}
+
+.process_initial_no2_monitors <- function(excel_file_path, sheet, skip, column_patterns) {
+    .import_regulatory_monitor_data(
+        excel_file_path = excel_file_path,
+        sheet = sheet,
+        skip = skip
+    ) |>
+        .select_cols(column_patterns) |>
+        .convert_site_id_poc_column_types() |>
+        .drop_rows_all_na() |>
+        dplyr::distinct()
+}
+
+.get_initial_no2_data <- function(year, setup_definitions) {
+    # Sites
+    sites_annual <- .process_initial_no2_sites(
+        excel_file_path = setup_definitions$file_definitions$excel_file_path,
+        sheet = setup_definitions$sheets$sites_annual,
+        skip = setup_definitions$skips$sites,
+        column_patterns = setup_definitions$column_patterns$sites
+    )
+    sites_1h <- .process_initial_no2_sites(
+        excel_file_path = setup_definitions$file_definitions$excel_file_path,
+        sheet = setup_definitions$sheets$sites_1h,
+        skip = setup_definitions$skips$sites,
+        column_patterns = setup_definitions$column_patterns$sites
+    )
+    # Monitors
+    # Monitor data unavailable for 2012-2015; data for 2016 is used instead
+    if (year %in% 2016:2023) {
+        monitors <- .process_initial_no2_monitors(
+            excel_file_path = setup_definitions$file_definitions$excel_file_path,
+            sheet = setup_definitions$sheets$monitors,
+            skip = setup_definitions$skips$monitors,
+            column_patterns = setup_definitions$column_patterns$monitors
+        )
+    } else if (year %in% 2012:2015) {
+        setup_definitions_2016 <- .set_up_no2_processing(year = 2016)
+        monitors <- .process_initial_no2_monitors(
+            excel_file_path = setup_definitions_2016$file_definitions$excel_file_path,
+            sheet = setup_definitions_2016$sheets$monitors,
+            skip = setup_definitions_2016$skips$monitors,
+            column_patterns = setup_definitions_2016$column_patterns$monitors
+        )
+        unlink(setup_definitions_2016$file_definitions$temp_directory, recursive = TRUE)
+    }
+
+    # Return
+    list(
+        sites_annual = sites_annual,
+        sites_1h = sites_1h,
+        monitors = monitors
+    )
+}
+
+# Validity determination -------------------------------------------------------
 .filter_no2_valid_dv <- function(df, year) {
     if (year %in% 2013:2023) {
         df |>
@@ -82,87 +183,59 @@
     }
 }
 
-.get_no2_monitors <- function(year) {
-    # General
-    temp_directory <- .create_temp_subdirectory("no2")
-    url <- .define_no2_url(year)
-    excel_file_path <- .download_regulatory_monitor_data(
-        year = year,
-        url = url,
-        temp_directory = temp_directory
-    )
-
-    # Sites
-    sheet_annual_sites <- .define_no2_annual_sites_sheet(year = year)
-    sheet_1h_sites <- .define_no2_1h_sites_sheet(year = year)
-    skip_sites <- .define_no2_skip(level = "site")
-    site_column_patterns <- .define_no2_column_patterns(level = "site")
-
-    no2_annual <- .import_regulatory_monitor_data(
-        excel_file_path = excel_file_path,
-        sheet = sheet_annual_sites,
-        skip = skip_sites
-    ) |>
-        .select_cols(site_column_patterns) |>
-        .rename_no2_site_columns() |>
-        .make_aqs_site_id_char()
-
-    no2_1h <- .import_regulatory_monitor_data(
-        excel_file_path = excel_file_path,
-        sheet = sheet_1h_sites,
-        skip = skip_sites
-    ) |>
-        .select_cols(site_column_patterns) |>
-        .rename_no2_site_columns() |>
-        .make_aqs_site_id_char()
-
-    # Monitors
-    sheet_monitors <- .define_no2_monitors_sheet(year = year)
-    skip_monitors <- .define_no2_skip(level = "monitor")
-    monitor_column_patterns <- .define_no2_column_patterns(level = "monitor")
-    # Monitor data unavailable for 2012-2015; data for 2016 is used instead
-    if (year %in% 2012:2015) {
-        temp_directory_2016_monitors <- .create_temp_subdirectory("no2_monitors")
-        url_2016_monitors <- .define_no2_url(year = 2016)
-        excel_file_path_2016_monitors <- .download_regulatory_monitor_data(
-            year = 2016,
-            url = url_2016_monitors,
-            temp_directory = temp_directory_2016_monitors
-        )
-        no2_monitors <- .import_regulatory_monitor_data(
-            excel_file_path = excel_file_path_2016_monitors,
-            sheet = sheet_monitors,
-            skip = skip_monitors
-        )
-        unlink(temp_directory_2016_monitors, recursive = TRUE)
-    } else {
-        no2_monitors <- .import_regulatory_monitor_data(
-            excel_file_path = excel_file_path,
-            sheet = sheet_monitors,
-            skip = skip_monitors
-        )
-    }
-    no2_monitors <- no2_monitors |>
-        .select_cols(monitor_column_patterns) |>
-        .make_aqs_site_id_char() |>
-        dplyr::distinct()
-
-    # Combined data
-    no2_sites <- .combine_standards(df_annual = no2_annual, df_1h = no2_1h) |>
+.get_unique_valid_no2_sites <- function(df, year) {
+    df |>
         .filter_no2_valid_dv(year = year) |>
         dplyr::select("aqs_site_id") |>
         dplyr::distinct()
-    no2 <- no2_sites |>
-        dplyr::left_join(no2_monitors, by = "aqs_site_id") |>
-        dplyr::select("aqs_site_id", "poc") |>
-        dplyr::distinct() |>
+}
+
+.determine_no2_validity <- function(year, initial_data_list) {
+    list(
+        sites_annual = .get_unique_valid_no2_sites(initial_data_list$sites_annual, year = year),
+        sites_1h = .get_unique_valid_no2_sites(initial_data_list$sites_1h, year = year)
+    )
+}
+
+# DF combination ----------------------------------------------------------------
+# Standards combined and sites and monitors joined
+
+.join_no2_sites_and_monitors <- function(valid_data_list, initial_data_list) {
+    no2_annual <- dplyr::left_join(
+        valid_data_list$sites_annual,
+        initial_data_list$monitors,
+        by = "aqs_site_id"
+    )
+    no2_1h <- dplyr::left_join(
+        valid_data_list$sites_1h,
+        initial_data_list$monitors,
+        by = "aqs_site_id"
+    )
+    list(
+        no2_annual = no2_annual,
+        no2_1h = no2_1h
+    )
+}
+
+.combine_no2_data <- function(valid_data_list, initial_data_list) {
+    joined_list <- .join_no2_sites_and_monitors(
+        valid_data_list = valid_data_list,
+        initial_data_list = initial_data_list
+    )
+    rbind(joined_list$no2_annual, joined_list$no2_1h) |>
+        dplyr::distinct()
+}
+
+# Main function -----------------------------------------------------------------
+.get_no2_monitors <- function(year) {
+    setup_definitions <- .set_up_no2_processing(year = year)
+    initial_data <- .get_initial_no2_data(year = year, setup_definitions = setup_definitions)
+    valid_data <- .determine_no2_validity(year = year, initial_data_list = initial_data)
+    no2 <- .combine_no2_data(valid_data_list = valid_data, initial_data_list = initial_data) |>
         dplyr::mutate(
-            poc = as.integer(poc),
             year = year,
             parameter_name = "Nitrogen dioxide (NO2)"
         )
-
-    # Clean up and output
-    unlink(temp_directory, recursive = TRUE)
+    unlink(setup_definitions$file_definitions$temp_directory, recursive = TRUE)
     no2
 }

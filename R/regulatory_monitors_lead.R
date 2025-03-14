@@ -69,7 +69,7 @@
 
 .define_lead_column_patterns <- function() {
     list(
-        sites = "^site$|aqs_site_id|design_value|validity",
+        sites = "^site$|aqs_site_id|x[0-9]{4}_[0-9]{4}_design_value|[0-9]{5}_[0-9]{4}_design_value|design_value_valid|validity|^valid_[0-9]{4}_[0-9]{4}_design_value",
         monitors = "^aqs_site_id$|^poc$"
     )
 }
@@ -90,7 +90,6 @@
 # Preliminary data processing --------------------------------------------------
 .rename_lead_site_columns <- function(df) {
     colnames(df)[grep("^site$", colnames(df))] <- "aqs_site_id"
-    colnames(df)[grep("invalid", colnames(df))] <- "invalid_dv"
     colnames(df)[grep("_design_value", colnames(df))] <- "valid_dv"
     colnames(df)[grep("validity|design_value_valid", colnames(df))] <- "validity"
     df
@@ -208,7 +207,6 @@
         monitors = initial_data$monitors
     ) |>
         dplyr::mutate(
-            poc = as.integer(poc),
             year = year,
             parameter_name = "Lead"
         )
