@@ -4,13 +4,13 @@
         unique()
 }
 
-.get_naaqs_parameters <- function() {
+.get_regulatory_parameters <- function() {
     .get_parameters() |>
         dplyr::filter(class_code == "APP_A_PARAMETERS") |>
         dplyr::select("parameter", "parameter_code")
 }
 
-.get_aqi_parameters <- function() {
+.get_aqi_naaqs_parameters <- function() {
     .get_parameters() |>
         dplyr::filter(class_code %in% c("APP_A_PARAMETERS", "AQI POLLUTANTS")) |>
         dplyr::select("parameter", "parameter_code") |>
