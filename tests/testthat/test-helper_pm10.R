@@ -37,6 +37,55 @@ pm10_valid_data_2021 <- .filter_pm10_valid_dv(pm10_initial_data_2021, year = 202
 pm10_valid_data_2022 <- .filter_pm10_valid_dv(pm10_initial_data_2022, year = 2022)
 pm10_valid_data_2023 <- .filter_pm10_valid_dv(pm10_initial_data_2023, year = 2023)
 
+pm10_2012 <- .finalize_pm10_data(
+    df = pm10_valid_data_2012,
+    year = 2012
+)
+pm10_2013 <- .finalize_pm10_data(
+    df = pm10_valid_data_2013,
+    year = 2013
+)
+pm10_2014 <- .finalize_pm10_data(
+    df = pm10_valid_data_2014,
+    year = 2014
+)
+pm10_2015 <- .finalize_pm10_data(
+    df = pm10_valid_data_2015,
+    year = 2015
+)
+pm10_2016 <- .finalize_pm10_data(
+    df = pm10_valid_data_2016,
+    year = 2016
+)
+pm10_2017 <- .finalize_pm10_data(
+    df = pm10_valid_data_2017,
+    year = 2017
+)
+pm10_2018 <- .finalize_pm10_data(
+    df = pm10_valid_data_2018,
+    year = 2018
+)
+pm10_2019 <- .finalize_pm10_data(
+    df = pm10_valid_data_2019,
+    year = 2019
+)
+pm10_2020 <- .finalize_pm10_data(
+    df = pm10_valid_data_2020,
+    year = 2020
+)
+pm10_2021 <- .finalize_pm10_data(
+    df = pm10_valid_data_2021,
+    year = 2021
+)
+pm10_2022 <- .finalize_pm10_data(
+    df = pm10_valid_data_2022,
+    year = 2022
+)
+pm10_2023 <- .finalize_pm10_data(
+    df = pm10_valid_data_2023,
+    year = 2023
+)
+
 unlink(pm10_setup_2012$file_definitions$temp_directory, recursive = TRUE)
 unlink(pm10_setup_2013$file_definitions$temp_directory, recursive = TRUE)
 unlink(pm10_setup_2014$file_definitions$temp_directory, recursive = TRUE)
