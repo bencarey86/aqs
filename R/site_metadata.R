@@ -27,11 +27,18 @@
         )
 }
 
-.get_sites_metadata <- function() {
+.get_site_metadata <- function() {
     temp_directory <- .create_temp_subdirectory("site_metadata")
     .download_zip_sites_metadata(temp_directory = temp_directory)
     df <- .import_sites_metadata(temp_directory = temp_directory) |>
         .transform_site_metadata_cols()
     unlink(temp_directory, recursive = TRUE)
     df
+}
+
+.get_regulatory_site_metadata <- function() {
+    .get_site_metadata() |>
+        dplyr::mutate("aqs_site_id" = stringr::str_c(state_code, county_code, site_number)) |>
+        dplyr::select(aqs_site_id, latitude, longitude) |>
+        dplyr::distinct()
 }
