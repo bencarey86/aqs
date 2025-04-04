@@ -124,6 +124,23 @@ test_that("Initial data does not contain duplicate observations", {
   })
 })
 
+test_that("Sites aqs_site_id observations are in expected format (string, 9 digits)", {
+  years <- 2012:2023
+  purrr::map(years, function(year) {
+    initial_data <- get(stringr::str_c("no2_initial_data_", year))
+    expect_true(all(stringr::str_detect(initial_data$sites_annual$aqs_site_id, "^[0-9]{9}$")))
+    expect_true(all(stringr::str_detect(initial_data$sites_1h$aqs_site_id, "^[0-9]{9}$")))
+  })
+})
+
+test_that("Monitors aqs_site_id observations are in expected format (string, 9 digits)", {
+  years <- 2012:2023
+  purrr::map(years, function(year) {
+    initial_data <- get(stringr::str_c("no2_initial_data_", year))
+    expect_true(all(stringr::str_detect(initial_data$monitors$aqs_site_id, "^[0-9]{9}$")))
+  })
+})
+
 # Validity determination -------------------------------------------------------
 test_that("NO2 data are filtered to valid DVs correctly", {
   df_2012 <- data.frame(
@@ -310,7 +327,7 @@ test_that("Final combined DF has correct number of unique monitors", {
   })
 })
 
-test_that(".combined_co_data joins data correctly", {
+test_that(".combine_no2_data joins data correctly", {
   sites_1 <- data.frame(
     aqs_site_id = c(1, 2, 3, 6)
   )

@@ -145,6 +145,28 @@ test_that("Initial data does not contain any observations with all NA values", {
   })
 })
 
+test_that("Site aqs_site_id observations are in expected format (string, 9 digits)", {
+  # Sites (2015-2023)
+  years <- 2015:2023
+  purrr::map(years, function(year) {
+    initial_data <- get(stringr::str_c("o3_initial_data_", year))
+    expect_true(
+      all(stringr::str_detect(initial_data$sites$aqs_site_id, "^[0-9]{9}$"))
+    )
+  })
+})
+
+test_that("Monitor aqs_site_id observations are in expected format (string, 9 digits)", {
+  # Monitors
+  years <- 2012:2023
+  purrr::map(years, function(year) {
+    initial_data <- get(stringr::str_c("o3_initial_data_", year))
+    expect_true(
+      all(stringr::str_detect(initial_data$monitors$aqs_site_id, "^[0-9]{9}$"))
+    )
+  })
+})
+
 # Validity determination --------------------------------------------------------
 test_that("Valid design values are filtered correctly", {
   df <- data.frame(

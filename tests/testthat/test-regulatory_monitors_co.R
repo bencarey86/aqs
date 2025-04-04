@@ -167,6 +167,24 @@ test_that("CO columns are renamed correctly", {
   )
 })
 
+test_that("Site aqs_site_id observations are in expected format (string, 9 characters)", {
+  years <- 2012:2013
+  purrr::map(years, function(year) {
+    co_initial_data <- get(stringr::str_c("co_initial_data_", year))
+    expect_true(all(stringr::str_detect(co_initial_data$sites$co_8h$aqs_site_id, "^[0-9]{9}$")))
+    expect_true(all(stringr::str_detect(co_initial_data$sites$co_1h$aqs_site_id, "^[0-9]{9}$")))
+  })
+})
+
+test_that("Monitor aqs_site_id observations are in expected format (string, 9 characters)", {
+  years <- 2012:2023
+  purrr::map(years, function(year) {
+    co_initial_data <- get(stringr::str_c("co_initial_data_", year))
+    expect_true(all(stringr::str_detect(co_initial_data$monitors$co_8h$aqs_site_id, "^[0-9]{9}$")))
+    expect_true(all(stringr::str_detect(co_initial_data$monitors$co_1h$aqs_site_id, "^[0-9]{9}$")))
+  })
+})
+
 # Validity determination -------------------------------------------------------
 test_that("CO valid_dv is filtered correctly", {
   df <- data.frame(

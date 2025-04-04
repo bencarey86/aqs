@@ -140,6 +140,22 @@ test_that("Initial data does not contain duplicate observations", {
   })
 })
 
+test_that("Site aqs_site_id observations are in expected format (string, 9 characters)", {
+  years <- 2012:2023
+  purrr::map(years, function(year) {
+    lead_initial_data <- get(stringr::str_c("lead_initial_data_", year))
+    expect_true(all(stringr::str_detect(lead_initial_data$sites$aqs_site_id, "^[0-9]{9}$")))
+  })
+})
+
+test_that("Monitor aqs_site_id observations are in expected format (string, 9 characters)", {
+  years <- 2012:2023
+  purrr::map(years, function(year) {
+    lead_initial_data <- get(stringr::str_c("lead_initial_data_", year))
+    expect_true(all(stringr::str_detect(lead_initial_data$monitors$aqs_site_id, "^[0-9]{9}$")))
+  })
+})
+
 # Validity determination -------------------------------------------------------
 test_that("Lead data is filtered to valid DVs correctly", {
   df_2012 <- data.frame(

@@ -104,6 +104,14 @@ test_that("Initial data does not contain any observations with all NA values", {
   })
 })
 
+test_that("aqs_site_id observations match expected pattern ($[0-9]{9}$)", {
+  years <- 2012:2023
+  purrr::map(years, function(year) {
+    initial_data <- get(stringr::str_c("pm10_initial_data_", year))
+    expect_true(all(stringr::str_detect(initial_data$aqs_site_id, "^[0-9]{9}$")))
+  })
+})
+
 # Validity determination --------------------------------------------------------
 test_that("Valid design values are filtered correctly", {
   df_2012 <- data.frame(
