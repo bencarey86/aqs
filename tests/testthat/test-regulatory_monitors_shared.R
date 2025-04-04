@@ -60,3 +60,25 @@ test_that("drop_rows_all_na drops only rows with all NA values", {
     expected_df
   )
 })
+
+test_that("Parameter names are redefined to match monitor DFs correctly", {
+  # Define expected parameter names
+  parameter_names <- c("Carbon monoxide", "Lead", "Nitrogen dioxide (NO2)", "Ozone", "PM10", "PM2.5", "Sulfur dioxide")
+  # Compare to actual parameter names in regulatory monitor DFs and monitor metadata
+  parameter <- c("co", "lead", "no2", "o3", "pm10", "pm25", "so2")
+  year <- 2012:2023
+  parameter_year_grid <- tidyr::expand_grid(parameter, year)
+  monitor_df_parameter_names <- purrr::pmap_chr(parameter_year_grid, function(parameter, year) {
+    get(stringr::str_c(parameter, "_", year))$parameter_name |> unique()
+  }) |>
+    unique() |>
+    sort()
+  expect_equal(
+    .get_regulatory_monitor_metadata()$parameter_name |> unique() |> sort(),
+    parameter_names |> sort()
+  )
+  expect_equal(
+    monitor_df_parameter_names,
+    parameter_names
+  )
+})
