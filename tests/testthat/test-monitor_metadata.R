@@ -1,37 +1,63 @@
-test_that("Monitor metadata file is downloaded as epxected", {
-  temp_directory <- .create_temp_subdirectory("monitor_metadata_testung")
-  .download_zip_monitor_metadata(temp_directory = temp_directory)
-  expect_true(file.exists(file.path(temp_directory, "aqs_monitors.csv")))
-  unlink(temp_directory, recursive = TRUE)
+test_that("Monitor metadata URL is active", {
+  expect_true(httr::HEAD("https://aqs.epa.gov/aqsweb/airdata/aqs_monitors.zip")$status == 200)
 })
 
-test_that("Monitor metadata file is imported as expected", {
-  temp_directory <- .create_temp_subdirectory("monitor_metadata_testung")
-  .download_zip_monitor_metadata(temp_directory = temp_directory)
-  df <- .import_monitor_metadata(temp_directory = temp_directory)
-  unlink(temp_directory, recursive = TRUE)
-  expect_true(
-    all(c(
-      "state_code",
-      "county_code",
-      "site_number",
-      "parameter_code",
-      "poc",
-      "parameter_name"
-    ) %in% colnames(df))
+test_that("Parameter codes are filtered correctly with actual data", {
+  expect_equal(
+    .filter_aqi_naaqs_parameters(raw_monitor_metadata),
+    raw_monitor_metadata |>
+      dplyr::filter(parameter_code %in% c(42101, 14129, 85129, 42602, 44201, 81102, 88101, 42401, 88502))
+  )
+  expect_equal(
+    .filter_regulatory_parameters(raw_monitor_metadata),
+    raw_monitor_metadata |>
+      dplyr::filter(parameter_code %in% c(42101, 14129, 85129, 42602, 44201, 81102, 88101, 42401))
   )
 })
 
-test_that("Master monitor metadata function returns expected output", {
-  df <- .get_monitor_metadata()
-  expect_true(
-    all(c(
-      "state_code",
-      "county_code",
-      "site_number",
-      "parameter_code",
+test_that("Parameter names are modified correctly", {
+  parameter_names <- c(
+    "Carbon monoxide",
+    "Lead",
+    "Nitrogen dioxide (NO2)",
+    "Ozone",
+    "PM10",
+    "PM2.5",
+    "Sulfur dioxide"
+  )
+  expect_equal(
+    raw_monitor_metadata |>
+      .filter_aqi_naaqs_parameters() |>
+      .clean_monitor_metadata_parameter_names() |>
+      dplyr::pull(parameter_name) |>
+      unique() |>
+      sort(),
+    parameter_names
+  )
+})
+
+test_that("Columns are selected appropriately", {
+  expect_equal(
+    colnames(aqi_naaqs_monitor_metadata),
+    c(
+      "aqs_site_id",
       "poc",
-      "parameter_name"
-    ) %in% colnames(df))
+      "parameter_code",
+      "parameter_name",
+      "measurement_scale",
+      "measurement_scale_definition",
+      "monitoring_objective"
+    )
+  )
+  expect_equal(
+    colnames(regulatory_monitor_metadata),
+    c(
+      "aqs_site_id",
+      "poc",
+      "parameter_name",
+      "measurement_scale",
+      "measurement_scale_definition",
+      "monitoring_objective"
+    )
   )
 })
