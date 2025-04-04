@@ -51,9 +51,9 @@
 .define_pm10_column_patterns <- function(year) {
     # Pattern has some general columns that are always included, with some years having additional columns
     col_patterns_general <- "^site$|aqs_site_id|poc|^valid|^x[0-9]{4}_[0-9]{4}_average_estimated_exceedances1"
-    col_patterns <- if (year >= 2017) {
+    if (year >= 2017) {
         col_patterns_general
-    } else if (year >= 2012) {
+    } else if (year >= 2012 && year <= 2016) {
         ene <- paste0("ene_", (year - 2), "_", year)
         valid <- paste0("ene_valid_", (year - 2), "_", year)
         paste0(c(col_patterns_general, ene, valid), collapse = "|")
@@ -82,6 +82,11 @@
     df
 }
 
+.drop_pm10_non_id_observations <- function(df) {
+    df |>
+        dplyr::filter(stringr::str_detect(aqs_site_id, "^[0-9]{9}$"))
+}
+
 .get_initial_pm10_data <- function(year, setup_definitions) {
     .import_regulatory_monitor_data(
         excel_file_path = setup_definitions$file_definitions$excel_file_path,
@@ -91,6 +96,7 @@
         .select_cols(col_patterns = setup_definitions$column_patterns) |>
         .rename_pm10_columns() |>
         .convert_site_id_poc_column_types() |>
+        .drop_pm10_non_id_observations() |>
         .drop_rows_all_na() |>
         dplyr::distinct()
 }
@@ -108,7 +114,7 @@
 
 .finalize_pm10_data <- function(df, year) {
     df |>
-        dplyr::select(aqs_site_id, poc, valid_dv) |>
+        dplyr::select(aqs_site_id, poc) |>
         dplyr::distinct() |>
         dplyr::mutate(
             "year" = year,
