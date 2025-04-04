@@ -1,3 +1,6 @@
 .Rproj.user
 playground.R
 .lintr
+/data
+/tests/testthat/fixtures
+.DS_Store

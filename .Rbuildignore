@@ -3,3 +3,5 @@
 ^\.lintr$
 ^playground\.R$
 ^LICENSE\.md$
+^data$
+^\.DS_Store$
