@@ -147,6 +147,12 @@
     df
 }
 
+.drop_site_non_monitor_aqs_site_id_observations <- function(df) {
+    # All non-standard aqs_site_id observations are notes at end of tables
+    df |>
+        dplyr::filter(stringr::str_detect(aqs_site_id, "^[0-9]{9}$"))
+}
+
 .get_initial_co_monitors <- function(excel_file_path, sheet, skip, column_patterns) {
     .import_regulatory_monitor_data(
         excel_file_path = excel_file_path,
@@ -189,6 +195,7 @@
     ) |>
         .select_cols(column_patterns) |>
         .rename_co_columns() |>
+        .drop_site_non_monitor_aqs_site_id_observations() |>
         .make_aqs_site_id_char() |>
         .drop_rows_all_na() |>
         dplyr::distinct()
