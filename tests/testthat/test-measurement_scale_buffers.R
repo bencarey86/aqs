@@ -76,7 +76,7 @@ test_that(".get_pop_weighted_centroids() returns a list of data frames", {
   )
 })
 
-test_that(".get_aqs_site_id_crs_columns() returns the correct columns", {
+test_that(".get_aqs_site_id_crs_columns_by_vintage() returns the correct columns", {
   df_vintage_4 <- data.frame(
     aqs_site_id = c("site1", "site2"),
     latitude = c(1.0, 2.0),
@@ -108,7 +108,7 @@ test_that(".get_aqs_site_id_crs_columns() returns the correct columns", {
     vintage_410 = expected_df_vintage_410
   )
   expect_equal(
-    .get_aqs_site_id_crs_columns(df_list),
+    .get_aqs_site_id_crs_columns_by_vintage(df_list),
     expected_list
   )
 })
@@ -166,41 +166,7 @@ test_that(".get_combined_aqs_site_id_crs_coordinates_by_vintage() returns the co
   )
 })
 
-test_that(".define_crs_matrices() returns a list of matrices with longitude first, latitude second", {
-  set.seed(sample(1:10, 1)) # arbitrary seed for reproducibility
-  monitors <- data.frame(
-    latitude = round(runif(10, min = 30, max = 45), 1),
-    longitude = round(runif(10, min = -120, max = -70), 1)
-  )
-  centroids <- data.frame(
-    centroid_latitude = round(runif(10, min = 30, max = 45), 1),
-    centroid_longitude = round(runif(10, min = -120, max = -70), 1)
-  )
-  crs_matrices <- .define_crs_matrices(monitors, centroids)
-  expect_true(is.list(crs_matrices))
-  expect_true(all(sapply(crs_matrices, is.matrix)))
-  expect_true(all(names(crs_matrices) == c("monitors", "centroids")))
-  expect_true(all(colnames(crs_matrices$monitors) == c("longitude", "latitude")))
-  expect_true(all(colnames(crs_matrices$centroids) == c("centroid_longitude", "centroid_latitude")))
-  expect_equal(
-    monitors$latitude,
-    crs_matrices$monitors[, 2]
-  )
-  expect_equal(
-    monitors$longitude,
-    crs_matrices$monitors[, 1]
-  )
-  expect_equal(
-    centroids$centroid_latitude,
-    crs_matrices$centroids[, 2]
-  )
-  expect_equal(
-    centroids$centroid_longitude,
-    crs_matrices$centroids[, 1]
-  )
-})
-
-test_that(".define_crs_matrices_single_site returns a list of matrices with longitude first, latitude second", {
+test_that(".define_crs_matrices returns a list of matrices with longitude first, latitude second", {
   set.seed(sample(1:10, 1)) # arbitrary seed for reproducibility
   site_longitude <- round(runif(1, min = -120, max = -70), 1)
   site_latitude <- round(runif(1, min = 30, max = 45), 1)
@@ -208,7 +174,7 @@ test_that(".define_crs_matrices_single_site returns a list of matrices with long
     centroid_latitude = round(runif(10, min = 30, max = 45), 1),
     centroid_longitude = round(runif(10, min = -120, max = -70), 1)
   )
-  crs_matrices <- .define_crs_matrices_single_site(site_longitude, site_latitude, centroids)
+  crs_matrices <- .define_crs_matrices(site_longitude, site_latitude, centroids)
   expect_true(is.list(crs_matrices))
   expect_true(all(sapply(crs_matrices, is.matrix)))
   expect_true(all(names(crs_matrices) == c("monitors", "centroids")))
@@ -232,16 +198,16 @@ test_that(".define_crs_matrices_single_site returns a list of matrices with long
   )
 })
 
-test_that(".calculate_distance_single_site_to_centroids() returns correct vector of distances", {
+test_that(".calculate_distance_to_centroids() returns correct vector of distances", {
   # Uses synthetic data generated in helper script
-  calculated_distances <- .calculate_distance_single_site_to_centroids(
-    site_longitude = test_monitor_crs[1],
-    site_latitude = test_monitor_crs[2],
-    centroids_df = test_points_complete
+  calculated_distances <- .calculate_distance_to_centroids(
+    site_longitude = test_centroids$centroid_longitude[1],
+    site_latitude = test_centroids$centroid_latitude[1],
+    centroids_df = test_centroids[1:25, ]
   )
   expect_equal(
     as.vector(calculated_distances),
-    test_points_complete$distance,
+    test_centroids$distance[1:25],
     tolerance = 0.005
   )
 })
@@ -270,7 +236,7 @@ test_that(".define_measurement_scale_buffers correctly determines buffers", {
   )
 })
 
-test_that(".determine_block_groups_in_scale_buffers correctly determines block groups in buffer", {
+test_that(".determine_block_groups_in_scale_buffers_for_single_site correctly determines block groups in buffer", {
   buffer_test_distances <- c(
     0.09, 0.1, 0.11, 0.05, 0.07, 0.49, 0.5, 0.51, 0.25, 0.35, 3.99, 4, 4.01, 2, 3, 49.99, 50, 50.01,
     25, 35, 75, 100, 200, 250, 300
@@ -288,7 +254,7 @@ test_that(".determine_block_groups_in_scale_buffers correctly determines block g
     regional_scale = as.character(c(1:17, 19, 20))
   )
   expect_equal(
-    .determine_block_groups_in_scale_buffers(
+    .determine_block_groups_in_scale_buffers_for_single_site(
       distances = buffer_test_distances,
       centroids = buffer_test_centroids
     ),
@@ -348,58 +314,203 @@ test_that("get_block_groups_in_measurement_scale_buffers() returns correct list"
       regional_scale = as.character(126:145)
     )
   )
+  expected_list <- purrr::map(
+    expected_list,
+    function(x) {
+      list(
+        aqs_site_id = x$aqs_site_id,
+        microscale = stringr::str_pad(x$microscale, 4, pad = "0", side = "left"),
+        middle_scale = stringr::str_pad(x$middle_scale, 4, pad = "0", side = "left"),
+        neighborhood = stringr::str_pad(x$neighborhood, 4, pad = "0", side = "left"),
+        urban_scale = stringr::str_pad(x$urban_scale, 4, pad = "0", side = "left"),
+        regional_scale = stringr::str_pad(x$regional_scale, 4, pad = "0", side = "left")
+      )
+    }
+  )
   names(expected_list) <- c("site_100", "site_200", "site_300", "site_400", "site_500", "site_600")
-  calculated_list <- get_block_groups_in_measurement_scale_buffers(
-    site_crs_df = site_crs_test,
-    centroids_df = test_centroids_df
+  actual_list <- get_block_groups_in_measurement_scale_buffers(
+    site_crs_df = .generate_test_site_coordinates(),
+    centroids_df = .generate_block_group_test_coordinates()
   )
   expect_equal(
-    calculated_list,
+    actual_list,
     expected_list
   )
 })
 
-test_that(".determine_monitor_location() returns correct monitor location", {
-  # Same block group in same pollutant-year-objective combination
-  # Same block group shared by both objectives within same pollutant-year combination
-  #
+test_that(".generate_parameter_year_grid returns complete parameter-year grid", {
   df <- data.frame(
-    bg_id = rep(sprintf("%04d", 1:100), each = 8),
-    parameter_name = rep(c("PM2.5", "Nitrogen dioxide (NO2)"), each = 400),
-    year = rep(2022:2023, each = 4, times = 100),
-    monitoring_objective = rep(c("Source/Highest/Max", "Other"), each = 2, times = 200)
+    aqs_site_id = 1:20,
+    parameter_name = rep(c("PM2.5", "Nitrogen dioxide (NO2)", "Ozone", "PM10", "Lead"), each = 4),
+    year = rep(2022:2023, times = 10),
+    monitoring_objective = rep(c("Source/Highest/Max", "Other"), times = 10)
+  )
+  expected_df <- data.frame(
+    parameter_name = rep(c("PM2.5", "Nitrogen dioxide (NO2)", "Ozone", "PM10", "Lead"), each = 2),
+    year = rep(2022:2023, times = 5)
+  ) |>
+    dplyr::arrange(parameter_name, year)
+  expect_equal(
+    .generate_parameter_year_grid(df),
+    expected_df
+  )
+})
+
+test_that(".generate_combined_parameter_abbreviation_year_string returns correct combined string", {
+  parameters <- rep(c("Carbon monoxide", "Lead", "Nitrogen dioxide (NO2)", "Ozone", "PM10", "PM2.5", "Sulfur dioxide"), times = 2)
+  years <- rep(2022:2023, each = 7)
+  expected_results <- c(
+    "co_2022", "lead_2022", "no2_2022", "o3_2022", "pm10_2022", "pm25_2022", "so2_2022",
+    "co_2023", "lead_2023", "no2_2023", "o3_2023", "pm10_2023", "pm25_2023", "so2_2023"
+  )
+  purrr::pmap(
+    list(
+      parameter = parameters,
+      year = years,
+      expected_result = expected_results
+    ),
+    function(parameter, year, expected_result) {
+      expect_equal(
+        .generate_combined_parameter_abbreviation_year_string(parameter, year),
+        expected_result
+      )
+    }
+  )
+})
+
+test_that(".get_unique_site_scale_combinations_by_objective returns all unique site and scale combinations
+  for a given parameter and year, split into a list of data frames by monitoring objective", {
+  df <- data.frame(
+    aqs_site_id = (rep(1:10, times = 3)),
+    parameter_name = rep(c("PM2.5", "Nitrogen dioxide (NO2)", "PM10"), each = 10),
+    measurement_scale = rep(c("MICROSCALE", "MIDDLE SCALE", "NEIGHBORHOOD", "URBAN SCALE", "REGIONAL SCALE"), times = 6),
+    monitoring_objective = rep(c("Source/Highest/Max", "Other", "Other"), times = 10),
+    year = rep(2022:2023, times = 15)
+  )
+  expected_pm25_2022 <- list(
+    source = data.frame(
+      aqs_site_id = c(1, 7),
+      measurement_scale = c("MICROSCALE", "MIDDLE SCALE")
+    ),
+    other = data.frame(
+      aqs_site_id = c(3, 5, 9),
+      measurement_scale = c("NEIGHBORHOOD", "REGIONAL SCALE", "URBAN SCALE")
+    )
+  )
+  expected_pm25_2023 <- list(
+    source = data.frame(
+      aqs_site_id = c(4, 10),
+      measurement_scale = c("URBAN SCALE", "REGIONAL SCALE")
+    ),
+    other = data.frame(
+      aqs_site_id = c(2, 6, 8),
+      measurement_scale = c("MIDDLE SCALE", "MICROSCALE", "NEIGHBORHOOD")
+    )
+  )
+  expected_no2_2022 <- list(
+    source = data.frame(
+      aqs_site_id = c(3, 9),
+      measurement_scale = c("NEIGHBORHOOD", "URBAN SCALE")
+    ),
+    other = data.frame(
+      aqs_site_id = c(1, 5, 7),
+      measurement_scale = c("MICROSCALE", "REGIONAL SCALE", "MIDDLE SCALE")
+    )
+  )
+  expected_no2_2023 <- list(
+    source = data.frame(
+      aqs_site_id = 6,
+      measurement_scale = "MICROSCALE"
+    ),
+    other = data.frame(
+      aqs_site_id = c(2, 4, 8, 10),
+      measurement_scale = c("MIDDLE SCALE", "URBAN SCALE", "NEIGHBORHOOD", "REGIONAL SCALE")
+    )
+  )
+  expected_pm10_2022 <- list(
+    source = data.frame(
+      aqs_site_id = 5,
+      measurement_scale = "REGIONAL SCALE"
+    ),
+    other = data.frame(
+      aqs_site_id = c(1, 3, 7, 9),
+      measurement_scale = c("MICROSCALE", "NEIGHBORHOOD", "MIDDLE SCALE", "URBAN SCALE")
+    )
+  )
+  expected_pm10_2023 <- list(
+    source = data.frame(
+      aqs_site_id = c(2, 8),
+      measurement_scale = c("MIDDLE SCALE", "NEIGHBORHOOD")
+    ),
+    other = data.frame(
+      aqs_site_id = c(4, 6, 10),
+      measurement_scale = c("URBAN SCALE", "MICROSCALE", "REGIONAL SCALE")
+    )
   )
   expect_equal(
-    .determine_monitor_location(df, "PM2.5", 2022, "Source/Highest/Max"),
-    sprintf("%04d", 1:50)
+    .get_unique_site_scale_combinations_by_objective(df, "PM2.5", 2022),
+    expected_pm25_2022
   )
   expect_equal(
-    .determine_monitor_location(df, "PM2.5", 2022, "Other"),
-    sprintf("%04d", 1:50)
+    .get_unique_site_scale_combinations_by_objective(df, "PM2.5", 2023),
+    expected_pm25_2023
   )
   expect_equal(
-    .determine_monitor_location(df, "PM2.5", 2023, "Source/Highest/Max"),
-    sprintf("%04d", 1:50)
+    .get_unique_site_scale_combinations_by_objective(df, "Nitrogen dioxide (NO2)", 2022),
+    expected_no2_2022
   )
   expect_equal(
-    .determine_monitor_location(df, "PM2.5", 2023, "Other"),
-    sprintf("%04d", 1:50)
+    .get_unique_site_scale_combinations_by_objective(df, "Nitrogen dioxide (NO2)", 2023),
+    expected_no2_2023
   )
   expect_equal(
-    .determine_monitor_location(df, "Nitrogen dioxide (NO2)", 2022, "Source/Highest/Max"),
-    sprintf("%04d", 51:100)
+    .get_unique_site_scale_combinations_by_objective(df, "PM10", 2022),
+    expected_pm10_2022
   )
   expect_equal(
-    .determine_monitor_location(df, "Nitrogen dioxide (NO2)", 2022, "Other"),
-    sprintf("%04d", 51:100)
+    .get_unique_site_scale_combinations_by_objective(df, "PM10", 2023),
+    expected_pm10_2023
   )
-  expect_equal(
-    .determine_monitor_location(df, "Nitrogen dioxide (NO2)", 2023, "Source/Highest/Max"),
-    sprintf("%04d", 51:100)
+})
+
+
+test_that(".determine_block_groups with_monitors_individual returns correct block groups sorted and unique", {
+  # Uses objects from helper file
+  test_block_groups_with_monitor_df <- .generate_synthetic_block_groups_with_monitor_df()
+  test_parameter_year_grid <- .generate_parameter_year_grid(
+    test_block_groups_with_monitor_df
   )
-  expect_equal(
-    .determine_monitor_location(df, "Nitrogen dioxide (NO2)", 2023, "Other"),
-    sprintf("%04d", 51:100)
+  purrr::map2(
+    test_parameter_year_grid$parameter_name,
+    test_parameter_year_grid$year,
+    function(parameter, year) {
+      expect_equal(
+        .determine_block_groups_with_monitors_individual(
+          test_block_groups_with_monitor_df,
+          parameter,
+          year,
+          "Source/Highest/Max"
+        ),
+        .get_synthetic_block_groups_with_source_monitors(
+          test_block_groups_with_monitor_df,
+          parameter,
+          year
+        )
+      )
+      expect_equal(
+        .determine_block_groups_with_monitors_individual(
+          test_block_groups_with_monitor_df,
+          parameter,
+          year,
+          "Other"
+        ),
+        .get_synthetic_block_groups_with_other_monitors(
+          test_block_groups_with_monitor_df,
+          parameter,
+          year
+        )
+      )
+    }
   )
 })
 
@@ -415,8 +526,179 @@ test_that("Block groups in source locations/buffers are removed from other locat
   )
 })
 
-test_that("get_block_group_monitoring_status returns correct output", {
-  monitors <- data.frame(
+test_that(".remove_source_objective_bg_from_other_objective() correctly removes shared block groups", {
+  source_bg_ids <- letters[1:10]
+  other_bg_ids <- letters[5:15]
+  expected_result <- letters[11:15]
+  expect_equal(
+    .remove_source_objective_bg_from_other_objective(
+      other_bg_ids = other_bg_ids,
+      source_bg_ids = source_bg_ids
+    ),
+    expected_result
+  )
+})
+
+test_that(".determine_block_groups_with_monitors returns the expected list of block groups", {
+  # Uses objects from helper file
+  expect_equal(
+    .determine_block_groups_with_monitors(
+      monitors = test_block_groups_with_monitor
+    ),
+    .generate_synthetic_block_groups_with_monitor_list()
+  )
+})
+
+test_that("Measurement scales are correctly transformed", {
+  # Test all expected responses, non-standard response, empty string, NA
+  expect_equal(
+    .transform_measurement_scale("MICROSCALE"),
+    "microscale"
+  )
+  expect_equal(
+    .transform_measurement_scale("MIDDLE SCALE"),
+    "middle_scale"
+  )
+  expect_equal(
+    .transform_measurement_scale("NEIGHBORHOOD"),
+    "neighborhood"
+  )
+  expect_equal(
+    .transform_measurement_scale("URBAN SCALE"),
+    "urban_scale"
+  )
+  expect_equal(
+    .transform_measurement_scale("REGIONAL SCALE"),
+    "regional_scale"
+  )
+  expect_equal(
+    .transform_measurement_scale("OTHER"),
+    "microscale"
+  )
+  expect_equal(
+    .transform_measurement_scale(""),
+    "microscale"
+  )
+  expect_equal(
+    .transform_measurement_scale(NA),
+    "microscale"
+  )
+})
+
+test_that(".determine_block_groups_in_monitor_buffer_individual() returns correct block groups", {
+  synthetic_monitor_buffer_list <- get_block_groups_in_measurement_scale_buffers(
+    site_crs_df = .generate_test_site_coordinates(),
+    centroids_df = .generate_block_group_test_coordinates()
+  )
+  sites <- c("100", "200", "300", "400", "500", "600")
+  measurement_scales <- c(
+    "MICROSCALE",
+    "MIDDLE SCALE",
+    "NEIGHBORHOOD",
+    "URBAN SCALE",
+    "REGIONAL SCALE"
+  )
+  purrr::map(sites, function(site) {
+    purrr::map(measurement_scales, function(scale) {
+      transformed_scale <- .transform_measurement_scale(scale)
+      expect_equal(
+        .determine_block_groups_in_monitor_buffer_individual(
+          monitor_buffer_list = synthetic_monitor_buffer_list,
+          aqs_site_id = site,
+          measurement_scale = scale
+        ),
+        synthetic_monitor_buffer_list[[stringr::str_c("site_", site)]][[transformed_scale]]
+      )
+    })
+  })
+})
+
+test_that(".determine_block_groups_in_monitor_buffer() returns correct block groups", {
+  expect_equal(
+    .determine_block_groups_in_monitor_buffer(
+      monitors = synthetic_monitor_df,
+      monitor_buffer_list = synthetic_monitor_buffer_list
+    ),
+    .generate_synthetic_block_groups_in_buffer()
+  )
+})
+
+test_that(".combine_block_groups_with_monitor_and_in_buffer() combines results as expected", {
+  test_block_groups_with_monitor <- .generate_synthetic_block_groups_with_monitor_list()
+  test_block_groups_in_buffer <- .generate_synthetic_block_groups_in_buffer()
+  expected_result <- list(
+    no2_2022 = list(
+      source = list(
+        monitor_location = test_block_groups_with_monitor$no2_2022$source,
+        monitor_buffer = test_block_groups_in_buffer$no2_2022$source
+      ),
+      other = list(
+        monitor_location = test_block_groups_with_monitor$no2_2022$other,
+        monitor_buffer = test_block_groups_in_buffer$no2_2022$other
+      )
+    ),
+    no2_2023 = list(
+      source = list(
+        monitor_location = test_block_groups_with_monitor$no2_2023$source,
+        monitor_buffer = test_block_groups_in_buffer$no2_2023$source
+      ),
+      other = list(
+        monitor_location = test_block_groups_with_monitor$no2_2023$other,
+        monitor_buffer = test_block_groups_in_buffer$no2_2023$other
+      )
+    ),
+    pm10_2022 = list(
+      source = list(
+        monitor_location = test_block_groups_with_monitor$pm10_2022$source,
+        monitor_buffer = test_block_groups_in_buffer$pm10_2022$source
+      ),
+      other = list(
+        monitor_location = test_block_groups_with_monitor$pm10_2022$other,
+        monitor_buffer = test_block_groups_in_buffer$pm10_2022$other
+      )
+    ),
+    pm10_2023 = list(
+      source = list(
+        monitor_location = test_block_groups_with_monitor$pm10_2023$source,
+        monitor_buffer = test_block_groups_in_buffer$pm10_2023$source
+      ),
+      other = list(
+        monitor_location = test_block_groups_with_monitor$pm10_2023$other,
+        monitor_buffer = test_block_groups_in_buffer$pm10_2023$other
+      )
+    ),
+    pm25_2022 = list(
+      source = list(
+        monitor_location = test_block_groups_with_monitor$pm25_2022$source,
+        monitor_buffer = test_block_groups_in_buffer$pm25_2022$source
+      ),
+      other = list(
+        monitor_location = test_block_groups_with_monitor$pm25_2022$other,
+        monitor_buffer = test_block_groups_in_buffer$pm25_2022$other
+      )
+    ),
+    pm25_2023 = list(
+      source = list(
+        monitor_location = test_block_groups_with_monitor$pm25_2023$source,
+        monitor_buffer = test_block_groups_in_buffer$pm25_2023$source
+      ),
+      other = list(
+        monitor_location = test_block_groups_with_monitor$pm25_2023$other,
+        monitor_buffer = test_block_groups_in_buffer$pm25_2023$other
+      )
+    )
+  )
+  expect_equal(
+    .combine_block_groups_with_monitor_and_in_buffer(
+      block_groups_with_monitor = test_block_groups_with_monitor,
+      block_groups_in_buffer = test_block_groups_in_buffer
+    ),
+    expected_result
+  )
+})
+
+test_that("master function to determine monitor status for all block groups returns correct output", {
+  test_monitors <- data.frame(
     parameter_name = rep(c("PM2.5", "Nitrogen dioxide (NO2)"), each = 8),
     year = rep(2022:2023, each = 4, times = 2),
     aqs_site_id = c(
@@ -452,49 +734,54 @@ test_that("get_block_group_monitoring_status returns correct output", {
     )
   )
 
+  test_master_list_of_block_groups_in_buffers <- get_block_groups_in_measurement_scale_buffers(
+    site_crs_df = test_monitors,
+    centroids_df = .generate_block_group_test_coordinates()
+  )
+
   pm25_2022_source <- c(
-    calculated_list$site_100$middle_scale,
-    calculated_list$site_200$regional_scale
+    test_master_list_of_block_groups_in_buffers$site_100$middle_scale,
+    test_master_list_of_block_groups_in_buffers$site_200$regional_scale
   ) |>
     unique()
   pm25_2022_other <- c(
-    calculated_list$site_100$urban_scale,
-    calculated_list$site_300$neighborhood
+    test_master_list_of_block_groups_in_buffers$site_100$urban_scale,
+    test_master_list_of_block_groups_in_buffers$site_300$neighborhood
   ) |>
     unique() |>
     setdiff(pm25_2022_source)
   pm25_2023_source <- c(
-    calculated_list$site_300$neighborhood,
-    calculated_list$site_300$urban_scale
+    test_master_list_of_block_groups_in_buffers$site_300$neighborhood,
+    test_master_list_of_block_groups_in_buffers$site_300$urban_scale
   ) |>
     unique()
   pm25_2023_other <- c(
-    calculated_list$site_400$microscale,
-    calculated_list$site_500$microscale
+    test_master_list_of_block_groups_in_buffers$site_400$microscale,
+    test_master_list_of_block_groups_in_buffers$site_500$microscale
   ) |>
     unique() |>
     setdiff(pm25_2023_source)
 
   no2_2022_source <- c(
-    calculated_list$site_600$regional_scale,
-    calculated_list$site_600$urban_scale
+    test_master_list_of_block_groups_in_buffers$site_600$regional_scale,
+    test_master_list_of_block_groups_in_buffers$site_600$urban_scale
   ) |>
     unique()
   no2_2022_other <- c(
-    calculated_list$site_400$neighborhood,
-    calculated_list$site_300$middle_scale
+    test_master_list_of_block_groups_in_buffers$site_400$neighborhood,
+    test_master_list_of_block_groups_in_buffers$site_300$middle_scale
   ) |>
     unique() |>
     setdiff(no2_2022_source)
 
   no2_2023_source <- c(
-    calculated_list$site_200$urban_scale,
-    calculated_list$site_100$middle_scale
+    test_master_list_of_block_groups_in_buffers$site_200$urban_scale,
+    test_master_list_of_block_groups_in_buffers$site_100$middle_scale
   ) |>
     unique()
   no2_2023_other <- c(
-    calculated_list$site_200$urban_scale,
-    calculated_list$site_300$neighborhood
+    test_master_list_of_block_groups_in_buffers$site_200$urban_scale,
+    test_master_list_of_block_groups_in_buffers$site_300$neighborhood
   ) |>
     unique() |>
     setdiff(no2_2023_source)
@@ -542,133 +829,15 @@ test_that("get_block_group_monitoring_status returns correct output", {
     )
   )
   expect_equal(
-    determine_block_group_monitor_status(
-      monitors = monitors,
-      bg_id_buffers = calculated_list
+    determine_block_groups_monitor_status(
+      monitors = test_monitors,
+      master_list_of_block_groups_in_buffers = test_master_list_of_block_groups_in_buffers
     ),
     expected_output
   )
-})
-sublist_name <- "pm25_2022"
-expected_output[[sublist_name]][["bg_id"]]
-calculated_list
-expected_output
-
-
-test_that(".calculate_distances() returns a correct matrix of distances", {
-  set.seed(sample(1:10, 1)) # arbitrary seed for reproducibility
-  monitors <- data.frame(
-    latitude = round(runif(10, min = 30, max = 45), 1),
-    longitude = round(runif(10, min = -120, max = -70), 1)
-  )
-  centroids <- data.frame(
-    centroid_latitude = round(runif(10, min = 30, max = 45), 1),
-    centroid_longitude = round(runif(10, min = -120, max = -70), 1)
-  )
-  crs_matrices <- .define_crs_matrices(monitors, centroids)
-  distances <- .calculate_distances(crs_matrices)
-  expect_true(is.matrix(distances))
-  expect_equal(nrow(distances), nrow(crs_matrices$monitors))
-  expect_equal(ncol(distances), nrow(crs_matrices$centroids))
-})
-
-test_that("Measurement scales are correctly defined", {
-  expect_equal(.define_measurement_scale_buffers("MICROSCALE"), 0.00)
-  expect_equal(.define_measurement_scale_buffers("MIDDLE SCALE"), 0.10)
-  expect_equal(.define_measurement_scale_buffers("NEIGHBORHOOD"), 0.50)
-  expect_equal(.define_measurement_scale_buffers("URBAN SCALE"), 4.00)
-  expect_equal(.define_measurement_scale_buffers("REGIONAL SCALE"), 50.00)
-  expect_equal(.define_measurement_scale_buffers("UNKNOWN SCALE"), 0.00)
-  expect_equal(.define_measurement_scale_buffers(""), 0.00)
-  expect_equal(.define_measurement_scale_buffers(NA), 0.00)
 })
 
 # Integration tests ---------------------------------------------------
 test_that("No aqs_site_id is represented twice in the same vintage with real data", {
 
-})
-
-
-
-
-
-
-
-# ------
-
-test_that(".process_crs_measurement_scale_data() filters and selects the correct columns", {
-  df_vintage_4 <- data.frame(
-    latitude = c(1.0, 2.0, NA),
-    longitude = c(1.0, 2.0, NA),
-    measurement_scale = c("scale1", "scale2", "scale3"),
-    year = c(2020, 2021, 2020)
-  )
-  df_vintage_410 <- data.frame(
-    latitude = c(1.0, 2.0, NA),
-    longitude = c(1.0, 2.0, NA),
-    measurement_scale = c("scale1", "scale2", "scale3"),
-    year = c(2010, 2011, 2010)
-  )
-  expected_df_vintage_4 <- data.frame(
-    latitude = c(1.0, 2.0),
-    longitude = c(1.0, 2.0),
-    measurement_scale = c("scale1", "scale2")
-  )
-  expected_df_vintage_410 <- data.frame(
-    latitude = c(1.0, 2.0),
-    longitude = c(1.0, 2.0),
-    measurement_scale = c("scale1", "scale2")
-  )
-  expect_equal(
-    .process_crs_measurement_scale_data(df_vintage_4, vintage_years = 2020:2029),
-    expected_df_vintage_4
-  )
-  expect_equal(
-    .process_crs_measurement_scale_data(df_vintage_410, vintage_years = 2010:2019),
-    expected_df_vintage_410
-  )
-})
-
-
-test_that(".select_crs_measurement_scale_columns() selects the correct columns", {
-  df <- data.frame(
-    latitude = c(1.0, 2.0),
-    longitude = c(1.0, 2.0),
-    measurement_scale = c("scale1", "scale2"),
-    other_column = c("a", "b")
-  )
-  expected_df <- data.frame(
-    latitude = c(1.0, 2.0),
-    longitude = c(1.0, 2.0),
-    measurement_scale = c("scale1", "scale2")
-  )
-  expect_equal(
-    .select_crs_measurement_scale_columns(df),
-    expected_df
-  )
-})
-
-test_that(".get_unique_crs_measurement_scale_combinations() returns a list of data frames", {
-  combined_monitors <- data.frame(
-    latitude = rep(1:10, times = 8),
-    longitude = rep(1:10, times = 8),
-    measurement_scale = rep(c("scale1", "scale2"), each = 40),
-    year = rep(2010:2029, times = 4)
-  )
-  expected_list <- list(
-    vintage_4 = data.frame(
-      latitude = rep(1:10, times = 2),
-      longitude = rep(1:10, times = 2),
-      measurement_scale = rep(c("scale1", "scale2"), each = 10)
-    ),
-    vintage_410 = data.frame(
-      latitude = rep(1:10, times = 2),
-      longitude = rep(1:10, times = 2),
-      measurement_scale = rep(c("scale1", "scale2"), each = 10)
-    )
-  )
-  expect_equal(
-    .get_unique_crs_measurement_scale_combinations(combined_monitors = combined_monitors),
-    expected_list
-  )
 })
